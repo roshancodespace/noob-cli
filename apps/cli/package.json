@@ -1,0 +1,29 @@
+{
+    "name": "@noob-cli/cli",
+    "version": "1.0.0",
+    "type": "module",
+    "bin": {
+        "noob": "./dist/cli.js"
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsx src/cli.ts"
+    },
+    "dependencies": {
+        "boxen": "^8.0.1",
+        "chalk": "^5.6.2",
+        "commander": "^14.0.3",
+        "dotenv": "^17.3.1",
+        "marked": "^17.0.4",
+        "marked-terminal": "^7.3.0",
+        "ora": "^9.3.0",
+        "@noob-cli/core": "workspace:*"
+    },
+    "devDependencies": {
+        "@types/marked": "^6.0.0",
+        "@types/marked-terminal": "^6.1.1",
+        "@types/node": "^22.0.0",
+        "tsx": "^4.21.0",
+        "typescript": "^5.9.3"
+    }
+}

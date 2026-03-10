@@ -74,9 +74,14 @@ fastify.post('/api/chat/stream', async (request, reply) => {
         }
         reply.raw.end();
     } catch (err: any) {
-        reply.raw.write(JSON.stringify({ type: 'content', content: `\nError: ${err.message}` }) + '\n');
-        reply.raw.end();
+        if (reply.raw.headersSent) {
+            reply.raw.write(JSON.stringify({ type: 'server_error', message: err.message, code: 500 }) + '\n');
+            reply.raw.end();
+        } else {
+            return reply.code(500).send({ type: 'server_error', message: err.message, code: 500 });
+        }
     }
+    return reply
 });
 
 const start = async () => {

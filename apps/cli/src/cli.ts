@@ -2,9 +2,6 @@ import 'dotenv/config';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import boxen from 'boxen';
-import { spawn } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { runOneShot, startInteractiveSession } from './ui/session.js';
 import { start } from '@noob-cli/core';
 

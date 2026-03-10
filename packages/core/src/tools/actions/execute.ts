@@ -16,7 +16,6 @@ export async function handleExecuteAction(
     const cmd = args.command?.trim();
     if (!cmd) return 'Failed: command argument missing.';
 
-    console.log(chalk.yellow(`\nAgent wants to run: `) + chalk.cyan(cmd));
     logger.info(`[ACTION DETECTED] execute_command: ${cmd}`);
 
     if (/^cd\s+(.+)/.test(cmd)) {

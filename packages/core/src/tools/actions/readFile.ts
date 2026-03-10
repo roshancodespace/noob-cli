@@ -7,7 +7,6 @@ export async function handleReadFileAction(args: { path: string }): Promise<stri
     const fp = args.path?.trim();
     if (!fp) return "Failed: path is required";
 
-    console.log(chalk.yellow(`\nAgent is reading: `) + chalk.cyan(fp));
     logger.info(`[ACTION DETECTED] read_file Path: ${fp}`);
 
     try {

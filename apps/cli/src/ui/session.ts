@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import * as readline from 'readline';
+import * as readline from 'readline/promises';
 import crypto from 'crypto';
 import { streamResponse, fetchStream } from './stream.js';
 import { logger } from '@noob-cli/core';
@@ -53,54 +53,57 @@ export async function startInteractiveSession(
     const rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout,
-        terminal: true
+        terminal: true,
+        historySize: 100,
     });
 
     const sessionId = crypto.randomUUID();
     let isFirstTurn = true;
+    let isActive = true;
 
-    const askQuestion = () => {
-        console.log();
+    rl.on('SIGINT', () => {
+        isActive = false;
+        rl.close();
+        console.log(chalk.dim('\nSession aborted.'));
+        process.exit(0);
+    });
 
-        rl.question(chalk.dim('? '), async (input) => {
+    while (isActive) {
+        try {
+            const input = await rl.question(chalk.cyan('? '));
             const trimmed = input.trim();
 
             if (/^(exit|quit)$/i.test(trimmed)) {
+                isActive = false;
                 console.log(chalk.dim('\nTerminating session...'));
-                logger.info('User exited the interactive session.');
                 rl.close();
-                process.exit(0);
+                break;
             }
 
-            if (!trimmed) {
-                return askQuestion();
-            }
+            if (!trimmed) continue;
 
             logger.info(`User Input: "${trimmed}"`);
 
-            try {
-                const sysPromptToPass = isFirstTurn ? systemPrompt : undefined;
-                const ctxPatternsToPass = isFirstTurn ? contextPatterns : undefined;
-                isFirstTurn = false;
+            const sysPromptToPass = isFirstTurn ? systemPrompt : undefined;
+            const ctxPatternsToPass = isFirstTurn ? contextPatterns : undefined;
+            isFirstTurn = false;
 
-                await streamResponse(fetchStream('/api/chat/stream', {
-                    prompt: trimmed,
-                    systemPrompt: sysPromptToPass,
-                    provider,
-                    model,
-                    contextPatterns: ctxPatternsToPass,
-                    cwd: process.cwd(),
-                    sessionId
-                }));
-
-            } catch (err: any) {
+            await streamResponse(fetchStream('/api/chat/stream', {
+                prompt: trimmed,
+                systemPrompt: sysPromptToPass,
+                provider,
+                model,
+                contextPatterns: ctxPatternsToPass,
+                cwd: process.cwd(),
+                sessionId
+            }));
+        } catch (err: any) {
+            if (isActive) {
                 console.error(chalk.red(`\n[Session Error]: ${err.message || err}\n`));
                 logger.error(`Error occurred during session turn`, err);
             }
+        }
+    }
 
-            askQuestion();
-        });
-    };
-
-    askQuestion();
+    process.exit(0);
 }

@@ -7,23 +7,23 @@ export async function handleEditFileAction(args: { path: string, search_text: st
     const fp = args.path?.trim();
     if (!fp) return "Failed: target path is required.";
 
-    console.log(chalk.yellow(`\nAgent is editing: `) + chalk.cyan(fp));
     logger.info(`[ACTION DETECTED] edit_file Path: ${fp}`);
 
     try {
         const fullPath = path.resolve(process.cwd(), fp);
-        
+
         const rawContent = await fs.readFile(fullPath, 'utf-8');
         const fileContent = rawContent.replace(/\r\n/g, '\n');
-        
-        const searchText = (args.search_text || "").replace(/\r\n/g, '\n');
+
+        const searchText = (args.search_text || "").replace(/\r\n/g, '\n').trim();
+        const fileContentNormal = fileContent.trim();
         const replaceText = (args.replace_text || "").replace(/\r\n/g, '\n');
 
         if (!searchText) {
             return "Failed: search_text cannot be empty.";
         }
 
-        const occurrences = fileContent.split(searchText).length - 1;
+        const occurrences = fileContentNormal.split(searchText).length - 1;
 
         if (occurrences === 0) {
             logger.warn(`Search string not found in ${fp}`);
@@ -35,8 +35,8 @@ export async function handleEditFileAction(args: { path: string, search_text: st
             return `Failed: The search_text appears ${occurrences} times in the file. Please provide a LARGER block of search_text so it uniquely matches only one location.`;
         }
 
-        const newContent = fileContent.replace(searchText, replaceText);
-        
+        const newContent = fileContentNormal.replace(searchText, replaceText);
+
         await fs.writeFile(fullPath, newContent, 'utf-8');
 
         console.log(chalk.green('File edited successfully.'));

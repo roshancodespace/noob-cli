@@ -12,7 +12,7 @@ export interface ToolCall {
 export type StreamChunk =
     | { type: 'content'; content: string }
     | { type: 'tool_start'; name: string; args: any }
-    | { type: 'tool_end'; name: string }
+    | { type: 'tool_result'; name: string; result: any }
     | { type: 'history_update'; newMessages: ModelMessage[] };
 
 export interface LLMOptions {

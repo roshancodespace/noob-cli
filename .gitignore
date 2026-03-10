@@ -1,6 +1,8 @@
 .env
 node_modules
 *.log
+*.xml
 .myai
 dist
 *.tsbuildinfo
+/output.json

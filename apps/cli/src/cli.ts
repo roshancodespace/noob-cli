@@ -8,14 +8,18 @@ import { start } from '@noob-cli/core';
 const program = new Command();
 
 async function ensureServer() {
-    try {
-        const res = await fetch('http://127.0.0.1:4000/health');
-        if (res.ok) return;
-    } catch {
+    for (let i = 0; i < 3; i++) {
+        try {
+            const res = await fetch('http://127.0.0.1:4000/health');
+            if (res.ok) return;
+        } catch {
+            if (i === 0) {
+                console.log(chalk.yellow('Core server not running. Starting...'));
+                start();
+            }
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
     }
-
-    console.log(chalk.yellow('Core server not running. Starting in background...'));
-    await start()
 }
 
 program

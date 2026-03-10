@@ -1,40 +1,48 @@
+import path from 'node:path';
+
 export interface SafetyResult {
     status: 'approved' | 'warning' | 'rejected';
     reason?: string;
 }
 
-const FATAL = [
-    'rm -rf /', 'rm -rf /*', 'mkfs', 'dd ', 'format ', ':(){ :|:& };:', '> /dev/sda'
+const FATAL_PATTERNS = [
+    'rm -rf /', 'rm -rf /*', 'mkfs', 'dd ', 'format ', ':(){ :|:& };:', '> /dev/sda', 'rd /s /q c:'
 ];
 
-const WARNING = [
-    'rm ', 'del ', 'pnpm publish', 'npm publish', 'git push --force', 
-    'chmod -R 777', 'chown -R', 'wget ', 'curl '
+const RISKY_PATTERNS = [
+    'rm ', 'del ', 'pnpm publish', 'npm publish', 'git push --force',
+    'chmod -R 777', 'chown -R', 'wget ', 'curl ', 'rd /s', 'rmdir /s'
 ];
 
-const ALLOWED = new Set([
+const ALLOWED_EXECUTABLES = new Set([
     'ls', 'dir', 'cat', 'type', 'cp', 'copy', 'xcopy', 'mv', 'move', 'mkdir', 'md',
     'touch', 'rm', 'del', 'rmdir', 'rd', 'find', 'where', 'which', 'echo', 'pwd', 'cd',
     'git', 'node', 'npm', 'npx', 'pnpm', 'yarn', 'bun', 'tsx', 'ts-node',
-    'tsc', 'vite', 'esbuild', 'rollup', 'webpack',
-    'grep', 'sed', 'awk', 'sort', 'head', 'tail', 'wc', 'tr', 'xargs',
-    'powershell', 'cmd', 'attrib', 'icacls', 'robocopy',
-    'curl', 'wget', 'ssh', 'scp', 'tar', 'zip', 'unzip', 'python', 'python3', 'pip'
+    'tsc', 'vite', 'esbuild', 'rollup', 'webpack', 'grep', 'powershell', 'cmd'
 ]);
 
 export function validateCommand(command: string): SafetyResult {
-    const cmd = command.trim();
-    const exe = cmd.split(/\s+/)[0].toLowerCase().replace(/^\.\//, '').replace(/\.exe$/, '');
+    const trimmed = command.trim();
+    const normalized = trimmed.toLowerCase().replace(/\s+/g, ' ');
+    const parts = normalized.split(' ');
+    const exe = parts[0].replace(/^.\//, '').replace(/\.exe$/, '');
 
-    const fatalMatch = FATAL.find(f => cmd.includes(f));
-    if (fatalMatch) return { status: 'rejected', reason: `Destructive pattern: '${fatalMatch}'` };
-
-    if (exe && !ALLOWED.has(exe)) {
-        return { status: 'rejected', reason: `Unknown executable: '${exe}'. Possible hallucination.` };
+    if (trimmed.includes('..') || path.isAbsolute(trimmed)) {
+        const resolved = path.resolve(process.cwd(), trimmed.match(/[\/\\]|[a-zA-Z]:/ ) ? parts[parts.length -1] : '');
+        if (!resolved.startsWith(process.cwd())) {
+            return { status: 'rejected', reason: 'Access outside of project root is forbidden.' };
+        }
     }
 
-    const warnMatch = WARNING.find(w => cmd.includes(w));
-    if (warnMatch) return { status: 'warning', reason: `Risky pattern: '${warnMatch}'` };
+    const fatalMatch = FATAL_PATTERNS.find(f => normalized.includes(f));
+    if (fatalMatch) return { status: 'rejected', reason: `Destructive command detected: '${fatalMatch}'` };
+
+    if (!ALLOWED_EXECUTABLES.has(exe)) {
+        return { status: 'rejected', reason: `Unknown or restricted executable: '${exe}'.` };
+    }
+
+    const riskyMatch = RISKY_PATTERNS.find(r => normalized.includes(r));
+    if (riskyMatch) return { status: 'warning', reason: `Potentially risky action: '${riskyMatch}'` };
 
     return { status: 'approved' };
 }

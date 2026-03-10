@@ -63,9 +63,10 @@ export class GeminiProvider implements LLMProvider {
 
             if (part.type === "tool-result") {
                 yield {
-                    type: "tool_end",
+                    type: "tool_result",
                     name: part.toolName,
-                };
+                    result: part.output,
+                }
             }
 
             if (part.type === "reasoning-delta") {

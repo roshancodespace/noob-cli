@@ -56,7 +56,7 @@ export async function streamResponse(
                 case 'content':
                     if (!hasStartedText) {
                         spinner.stop();
-                        process.stdout.write(`\n`);
+                        process.stdout.write(`\r`);
                         hasStartedText = true;
                     }
                     process.stdout.write(chunk.content);
@@ -65,12 +65,13 @@ export async function streamResponse(
 
                 case 'tool_start':
                     spinner.stop();
-                    console.log(chalk.dim(`\n  ○ Running ${chunk.name}...`));
+                    console.log(chalk.blue(`\n  ○ Running ${chalk.bold(chunk.name)}...`));
                     hasStartedText = false;
                     break;
 
-                case 'tool_end':
-                    spinner.start(chalk.dim('Processing...'));
+                case 'tool_result':
+                    console.log(chalk.green(`  ✓ ${chunk.name} completed.`));
+                    spinner.start(chalk.dim('Analyzing result...'));
                     break;
             }
         }

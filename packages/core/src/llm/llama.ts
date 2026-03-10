@@ -21,9 +21,9 @@ export class LlamaProvider implements LLMProvider {
             messages: messages,
             tools: tools,
             providerOptions: {
-              openai: {
-                parallelToolCalls: true,
-              } satisfies OpenAILanguageModelResponsesOptions 
+                openai: {
+                    parallelToolCalls: true,
+                } satisfies OpenAILanguageModelResponsesOptions
             },
             stopWhen: stepCountIs(5),
         });
@@ -56,9 +56,10 @@ export class LlamaProvider implements LLMProvider {
 
             if (part.type === "tool-result") {
                 yield {
-                    type: "tool_end",
+                    type: "tool_result",
                     name: part.toolName,
-                };
+                    result: part.output,
+                }
             }
 
             if (part.type === "reasoning-delta") {

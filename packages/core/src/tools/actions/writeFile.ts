@@ -11,7 +11,6 @@ export async function handleWriteFileAction(args: { path: string, content: strin
         return 'Failed: path is required.';
     }
 
-    console.log(chalk.yellow(`\nAgent is writing: `) + chalk.cyan(fp));
     logger.info(`[ACTION DETECTED] write_file Path: ${fp}`);
 
     try {

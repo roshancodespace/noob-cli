@@ -28,8 +28,9 @@ export class Agent {
     /**
      * Streaming question with full conversation history.
      * systemPrompt is used only on the very first call to initialize the conversation.
+     * chatOnly skips tools for lightweight conversational use (e.g. buddy mode).
      */
-    async *askStream(input?: string, systemPrompt?: string): AsyncIterable<StreamChunk> {
+    async *askStream(input?: string, systemPrompt?: string, chatOnly = false): AsyncIterable<StreamChunk> {
         if (this.messages.length === 0) {
             logger.info('Initializing new interactive streaming session.');
             this.messages.push({
@@ -43,7 +44,9 @@ export class Agent {
             this.messages.push({ role: 'user', content: input });
         }
 
-        for await (const chunk of this.llm.generateStream(this.messages, TOOLS)) {
+        const tools = chatOnly ? undefined : TOOLS;
+
+        for await (const chunk of this.llm.generateStream(this.messages, tools)) {
             if (chunk.type === 'history_update') {
                 this.messages = chunk.newMessages;
             } else {

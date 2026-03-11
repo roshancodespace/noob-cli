@@ -2,8 +2,9 @@ import chalk from 'chalk';
 import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '../../utils/logger.js';
+import { applyPatch } from 'diff';
 
-export async function handleEditFileAction(args: { path: string, search_text: string, replace_text: string }): Promise<string> {
+export async function handleEditFileAction(args: { path: string, patch: string }): Promise<string> {
     const fp = args.path?.trim();
     if (!fp) return "Failed: target path is required.";
 
@@ -12,32 +13,29 @@ export async function handleEditFileAction(args: { path: string, search_text: st
     try {
         const fullPath = path.resolve(process.cwd(), fp);
 
+        if (!fullPath.startsWith(process.cwd())) {
+            const errMsg = `Failed: Access denied. Cannot edit outside the current working directory.`;
+            console.log(chalk.red(`[BLOCKED] Path traversal attempt: ${fullPath}`));
+            logger.warn(`Blocked edit outside CWD: ${fullPath}`);
+            return errMsg;
+        }
+
         const rawContent = await fs.readFile(fullPath, 'utf-8');
         const fileContent = rawContent.replace(/\r\n/g, '\n');
 
-        const searchText = (args.search_text || "").replace(/\r\n/g, '\n').trim();
-        const fileContentNormal = fileContent.trim();
-        const replaceText = (args.replace_text || "").replace(/\r\n/g, '\n');
-
-        if (!searchText) {
-            return "Failed: search_text cannot be empty.";
+        const patchStr = args.patch;
+        if (!patchStr) {
+            return "Failed: patch is required.";
         }
 
-        const occurrences = fileContentNormal.split(searchText).length - 1;
-
-        if (occurrences === 0) {
-            logger.warn(`Search string not found in ${fp}`);
-            return `Failed: The exact search_text was not found in the file. Did you hallucinate whitespace or indentation? Try reading the file again and copy-pasting the exact block.`;
+        const patchedContent = applyPatch(fileContent, patchStr);
+        
+        if (patchedContent === false) {
+            logger.warn(`Failed to apply patch to ${fp}`);
+            return `Failed: The diff patch could not be applied. This usually happens if the -lines in the patch do not exactly match the original file. Try reading the file again and providing an accurate patch.`;
         }
 
-        if (occurrences > 1) {
-            logger.warn(`Multiple occurrences found in ${fp}`);
-            return `Failed: The search_text appears ${occurrences} times in the file. Please provide a LARGER block of search_text so it uniquely matches only one location.`;
-        }
-
-        const newContent = fileContentNormal.replace(searchText, replaceText);
-
-        await fs.writeFile(fullPath, newContent, 'utf-8');
+        await fs.writeFile(fullPath, patchedContent, 'utf-8');
 
         console.log(chalk.green('File edited successfully.'));
         logger.success(`Successfully replaced text in: ${fp}`);

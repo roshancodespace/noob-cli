@@ -1,24 +1,47 @@
 import Fastify from 'fastify';
+import fastifyWebsocket from '@fastify/websocket';
 import { Agent } from './agent.js';
 import { createProvider } from './llm/factory.js';
 import { loadContext } from './context/index.js';
 import { config } from './config.js';
+import { withBuddyMode } from './buddy.js';
 
 const fastify = Fastify({ logger: false });
+fastify.register(fastifyWebsocket);
 
-const agents = new Map<string, Agent>();
+type AgentEntry = {
+    agent: Agent;
+    lastAccessed: number;
+};
+const agents = new Map<string, AgentEntry>();
 
-function getOrCreateAgent(sessionId: string, providerName: string, model: string, apiKey: string) {
-    if (agents.has(sessionId)) {
-        return agents.get(sessionId)!;
+const AGENT_TTL = 1000 * 60 * 60; // 1 hour
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of agents.entries()) {
+        if (now - entry.lastAccessed > AGENT_TTL) {
+            agents.delete(key);
+            console.log(`[GC] Cleaned up inactive agent session: ${key}`);
+        }
     }
+}, 1000 * 60 * 5).unref(); // Run every 5 minutes
+
+function getOrCreateAgent(sessionId: string, providerName: string, model: string) {
+    const existing = agents.get(sessionId);
+    if (existing) {
+        existing.lastAccessed = Date.now();
+        return existing.agent;
+    }
+
+    const apiKey = (providerName === "groq" ? config.providers.groq.apiKey : config.providers.gemini.apiKey) || '';
     const provider = createProvider({
         provider: providerName,
         apiKey: apiKey,
         model: model,
     });
+
     const agent = new Agent(provider);
-    agents.set(sessionId, agent);
+    agents.set(sessionId, { agent, lastAccessed: Date.now() });
     return agent;
 }
 
@@ -47,47 +70,94 @@ fastify.post('/api/chat/ask', async (request, reply) => {
     return { response };
 });
 
-fastify.post('/api/chat/stream', async (request, reply) => {
-    const { sessionId, prompt, systemPrompt, provider, model, apiKey, contextPatterns, cwd } = request.body as any;
+fastify.register(async (fastify) => {
+    fastify.get('/api/chat/ws', { websocket: true }, (connection, req) => {
+        connection.on('message', async (msg) => {
+            const data = JSON.parse(msg.toString());
+            const { action, sessionId, prompt, systemPrompt, provider, model, contextPatterns, cwd, buddyMode } = data;
 
-    if (cwd) process.chdir(cwd);
+            if (cwd) process.chdir(cwd);
 
-    const prov = provider || config.llm.provider;
-    const mod = model || config.llm.model;
-    const key = apiKey || config.llm.apiKey;
+            const prov = provider || config.llm.provider;
+            const mod = model || config.llm.model;
 
-    const agent = getOrCreateAgent(sessionId || 'default', prov, mod, key);
+            if (action === 'main_task') {
+                const agent = getOrCreateAgent(sessionId || 'default', prov, mod);
+                let finalSysPrompt = systemPrompt;
 
-    let finalSysPrompt = systemPrompt;
-    if (contextPatterns && contextPatterns.length > 0) {
-        const ctx = await loadContext(contextPatterns, { provider: prov, model: mod });
-        finalSysPrompt = finalSysPrompt ? `${finalSysPrompt}\n\n${ctx.systemPrompt}` : ctx.systemPrompt;
-    }
+                if (contextPatterns && contextPatterns.length > 0) {
+                    try {
+                        const ctx = await loadContext(contextPatterns, { provider: prov, model: mod });
+                        finalSysPrompt = finalSysPrompt ? `${finalSysPrompt}\n\n${ctx.systemPrompt}` : ctx.systemPrompt;
+                    } catch (err: any) {
+                        connection.send(JSON.stringify({ type: 'server_error', message: err.message }));
+                        return;
+                    }
+                }
 
-    reply.raw.setHeader('Content-Type', 'application/x-ndjson');
-    reply.raw.setHeader('Transfer-Encoding', 'chunked');
+                try {
+                    let stream = agent.askStream(prompt, finalSysPrompt);
 
-    try {
-        const stream = agent.askStream(prompt, finalSysPrompt);
-        for await (const chunk of stream) {
-            reply.raw.write(JSON.stringify(chunk) + '\n');
-        }
-        reply.raw.end();
-    } catch (err: any) {
-        if (reply.raw.headersSent) {
-            reply.raw.write(JSON.stringify({ type: 'server_error', message: err.message, code: 500 }) + '\n');
-            reply.raw.end();
-        } else {
-            return reply.code(500).send({ type: 'server_error', message: err.message, code: 500 });
-        }
-    }
-    return reply
+                    if (buddyMode) {
+                        const buddyProvider = "gemini";
+                        const buddyModel = "gemini-2.5-flash";
+                        const buddyAgent = getOrCreateAgent(`${sessionId || 'default'}-buddy-internal`, buddyProvider, buddyModel);
+
+                        stream = withBuddyMode(prompt, stream, buddyAgent);
+                    }
+
+                    for await (const chunk of stream) {
+                        connection.send(JSON.stringify(chunk));
+                    }
+                    connection.send(JSON.stringify({ type: 'task_complete' }));
+                } catch (err: any) {
+                    const errorMsg = err.message || String(err);
+                    console.error('[Stream Error]', errorMsg);
+                    
+                    if (errorMsg.includes('Failed to parse input') || errorMsg.includes('JSON')) {
+                        connection.send(JSON.stringify({ 
+                            type: 'server_error', 
+                            message: `AI Model generated invalid format: ${errorMsg}`
+                        }));
+                    } else {
+                        connection.send(JSON.stringify({ 
+                            type: 'server_error', 
+                            message: errorMsg 
+                        }));
+                    }
+                }
+            }
+
+            if (action === 'buddy_chat') {
+                const buddyProvider = "gemini";
+                const buddyModel = "gemini-2.5-flash";
+                const buddyAgent = getOrCreateAgent(`${sessionId || 'default'}-buddy`, buddyProvider, buddyModel);
+
+                try {
+                    const buddyStream = buddyAgent.askStream(
+                        prompt,
+                        "You are Buddy, the witty CLI sidekick. Give a quick, 1-sentence funny reply.",
+                        true
+                    );
+                    for await (const chunk of buddyStream) {
+                        if (chunk.type === 'content') {
+                            connection.send(JSON.stringify({ type: 'buddy_content', content: chunk.content }));
+                        }
+                    }
+                } catch (e) {
+                }
+            }
+        });
+    });
 });
 
 const start = async () => {
     try {
         await fastify.listen({ port: 4000, host: '127.0.0.1' });
-    } catch (err) {
+    } catch (err: any) {
+        if (err.code === 'EADDRINUSE') {
+            return;
+        }
         console.error(err);
         process.exit(1);
     }

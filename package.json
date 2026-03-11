@@ -1,5 +1,5 @@
 {
-  "name": "ai-monorepo",
+  "name": "noob-cli",
   "private": true,
   "engines": {
     "node": ">=20"

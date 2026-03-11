@@ -15,6 +15,7 @@ export async function handleWriteFileAction(args: { path: string, content: strin
 
     try {
         const fullPath = path.resolve(process.cwd(), fp);
+
         await fs.mkdir(path.dirname(fullPath), { recursive: true });
         await fs.writeFile(fullPath, content, 'utf-8');
 

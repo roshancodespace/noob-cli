@@ -1,5 +1,13 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { z } from 'zod';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+dotenv.config({
+    path: path.resolve(__dirname, "../../../.env")
+});
 
 const configSchema = z.object({
     AI_PROVIDER: z.enum(['groq', 'ollama', 'llama', 'gemini']).default('llama'),
@@ -10,7 +18,7 @@ const configSchema = z.object({
     OLLAMA_BASE_URL: z.url().default('http://localhost:11434'),
     LLAMA_BASE_URL: z.url().default('http://localhost:8080'),
     LLAMA_API_KEY: z.string().default('default'),
-    
+
     PORT: z.coerce.number().default(4000),
 });
 
@@ -32,6 +40,7 @@ export const config = {
         debug: parsed.data.DEBUG
     },
     providers: {
+        groq: { apiKey: parsed.data.GROQ_API_KEY },
         ollama: { baseUrl: parsed.data.OLLAMA_BASE_URL },
         llama: { baseUrl: parsed.data.LLAMA_BASE_URL, apiKey: parsed.data.LLAMA_API_KEY },
         gemini: { apiKey: parsed.data.GOOGLE_GENERATIVE_AI_API_KEY }

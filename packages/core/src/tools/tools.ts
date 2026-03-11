@@ -4,7 +4,6 @@ import { handleExecuteAction } from './actions/execute.js';
 import { handleReadFileAction } from './actions/readFile.js';
 import { handleWriteFileAction } from './actions/writeFile.js';
 import { handleEditFileAction } from './actions/editFile.js';
-import { perplexitySearch } from '@perplexity-ai/ai-sdk';
 
 export const TOOLS: Record<string, Tool> = {
     execute_command: {
@@ -44,11 +43,10 @@ export const TOOLS: Record<string, Tool> = {
 
     edit_file: {
         type: 'function',
-        description: 'Replaces specific lines in an existing file. This is better for modifying large files without re-writing the entire file.',
+        description: 'Applies a Unified Format Patch to an existing file. This is the BEST way to modify files. ALWAYS read the file first.',
         inputSchema: z.object({
             path: z.string().describe('The path to the file to edit.'),
-            search_text: z.string().describe('The EXACT block of text existing in the file that you want to replace. Must match whitespace and indentation perfectly.'),
-            replace_text: z.string().describe('The new text that will replace the search_text.')
+            patch: z.string().describe('The unified diff patch to apply to the file. For example:\n--- target.txt\n+++ target.txt\n@@ -1,3 +1,3 @@\n-old line\n+new line')
         }),
         execute: async (args) => {
             return await handleEditFileAction(args);

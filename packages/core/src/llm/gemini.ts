@@ -16,15 +16,8 @@ export class GeminiProvider implements LLMProvider {
     async generate(messages: any[], tools?: ToolSet): Promise<string> {
         const result = await generateText({
             model: this.google(this.model),
-            messages: messages,
-            tools: {
-                ...tools,
-                google_search: google.tools.googleSearch({
-                    searchTypes: {
-                        webSearch: {}
-                    }
-                })
-            },
+            messages,
+            tools,
             stopWhen: stepCountIs(5),
         });
         return result.text;
@@ -33,15 +26,8 @@ export class GeminiProvider implements LLMProvider {
     async *generateStream(messages: any[], tools?: ToolSet): AsyncIterable<StreamChunk> {
         const result = streamText({
             model: this.google(this.model),
-            messages: messages,
-            tools: {
-                ...tools,
-                google_search: google.tools.googleSearch({
-                    searchTypes: {
-                        webSearch: {}
-                    }
-                })
-            },
+            messages,
+            tools,
             stopWhen: stepCountIs(5),
         });
 
@@ -71,7 +57,7 @@ export class GeminiProvider implements LLMProvider {
 
             if (part.type === "reasoning-delta") {
                 yield {
-                    type: "content",
+                    type: "reasoning",
                     content: (part as any).text,
                 };
             }

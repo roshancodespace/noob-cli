@@ -36,6 +36,13 @@ export async function handleExecuteAction(
 }
 
 function handleCd(cmd: string): string {
+    if (cmd.includes('&&') || cmd.includes(';') || cmd.includes('||')) {
+        const errStr = "Failed: Do not chain 'cd' with other commands. Execute 'cd' standalone, wait for success, and then execute the next command.";
+        console.log(chalk.yellow(`[BLOCKED] AI attempted to chain cd: ${cmd}`));
+        logger.warn(`Blocked chained cd attempt: ${cmd}`);
+        return errStr;
+    }
+
     const target = cmd.match(/^cd\s+(.+)/)![1].trim().replace(/^["']|["']$/g, '');
     try {
         process.chdir(path.resolve(process.cwd(), target));

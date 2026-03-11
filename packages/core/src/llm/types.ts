@@ -13,7 +13,12 @@ export type StreamChunk =
     | { type: 'content'; content: string }
     | { type: 'tool_start'; name: string; args: any }
     | { type: 'tool_result'; name: string; result: any }
-    | { type: 'history_update'; newMessages: ModelMessage[] };
+    | { type: 'history_update'; newMessages: ModelMessage[] }
+    | { type: 'buddy_content'; content: string }
+    | { type: 'reasoning'; content: string }
+    | { type: 'task_complete' }
+    | { type: 'server_error'; message: string }
+    | { type: 'error'; message: string };
 
 export interface LLMOptions {
     apiKey: string;

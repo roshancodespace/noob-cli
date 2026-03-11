@@ -79,7 +79,7 @@ export class GroqProvider implements LLMProvider {
 
                 if (part.type === "reasoning-delta") {
                     yield {
-                        type: "content",
+                        type: "reasoning",
                         content: (part as any).text,
                     };
                 }

@@ -10,7 +10,9 @@ export async function handleReadFileAction(args: { path: string }): Promise<stri
     logger.info(`[ACTION DETECTED] read_file Path: ${fp}`);
 
     try {
-        const content = await fs.readFile(path.resolve(process.cwd(), fp), 'utf-8');
+        const fullPath = path.resolve(process.cwd(), fp);
+
+        const content = await fs.readFile(fullPath, 'utf-8');
         console.log(chalk.green('File read successfully.'));
         logger.success(`Successfully read file: ${fp}`);
         return `File contents of ${fp}:\n${content}`;

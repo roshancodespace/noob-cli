@@ -18,7 +18,7 @@ const ALLOWED_EXECUTABLES = new Set([
     'ls', 'dir', 'cat', 'type', 'cp', 'copy', 'xcopy', 'mv', 'move', 'mkdir', 'md',
     'touch', 'rm', 'del', 'rmdir', 'rd', 'find', 'where', 'which', 'echo', 'pwd', 'cd',
     'git', 'node', 'npm', 'npx', 'pnpm', 'yarn', 'bun', 'tsx', 'ts-node',
-    'tsc', 'vite', 'esbuild', 'rollup', 'webpack', 'grep', 'powershell', 'cmd'
+    'tsc', 'vite', 'esbuild', 'rollup', 'webpack', 'grep', 'powershell', 'cmd', 'wc'
 ]);
 
 export function validateCommand(command: string): SafetyResult {

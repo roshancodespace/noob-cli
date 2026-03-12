@@ -1,10 +1,10 @@
 import Fastify from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
-import { Agent } from './agent.js';
-import { createProvider } from './llm/factory.js';
-import { loadContext } from './context/index.js';
-import { config } from './config.js';
-import { withBuddyMode } from './buddy.js';
+import { Agent } from '../agent/index.js';
+import { createProvider } from '../llm/factory.js';
+import { loadContext } from '../context/index.js';
+import { config } from '../config/index.js';
+import { withBuddyMode } from '../agent/index.js';
 
 const fastify = Fastify({ logger: false });
 fastify.register(fastifyWebsocket);

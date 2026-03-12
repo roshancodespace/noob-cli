@@ -1,7 +1,7 @@
-import { logger } from './utils/logger.js';
-import { LLMProvider, StreamChunk } from './llm/types.js';
-import { AGENT_SYSTEM_INSTRUCTIONS } from './data/instructions.js';
-import { TOOLS } from './tools/tools.js';
+import { logger } from '../utils/logger.js';
+import { LLMProvider, StreamChunk } from '../llm/types.js';
+import { AGENT_SYSTEM_INSTRUCTIONS } from '../data/instructions.js';
+import { TOOLS } from '../tools/tools.js';
 import type { ModelMessage } from 'ai';
 
 export class Agent {

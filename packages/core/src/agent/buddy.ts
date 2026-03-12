@@ -1,5 +1,5 @@
 import { Agent } from "./agent.js";
-import { StreamChunk } from "./llm/types.js";
+import { StreamChunk } from "../llm/types.js";
 
 const BUDDY_PROMPT = `You are the highly sophisticated, formal, and dryly witty conversational interface of "Noob CLI", the user's terminal AI. You embody the exact persona and speaking style of J.A.R.V.I.S. from Iron Man. You are the eloquent voice speaking while your background subroutines process the user's request. 
 Strict Rules:

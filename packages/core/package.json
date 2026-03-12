@@ -6,7 +6,7 @@
     "types": "dist/index.d.ts",
     "scripts": {
         "build": "tsc",
-        "dev": "tsx src/server.ts"
+        "dev": "tsx src/api/server.ts"
     },
     "dependencies": {
         "@ai-sdk/google": "^3.0.43",

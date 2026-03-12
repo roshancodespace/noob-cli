@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import chalk from 'chalk';
 
 /**
  * Logger that pipes output to a persistent file stream 
@@ -19,7 +18,7 @@ export class Logger {
         this.stream = fs.createWriteStream(logFilePath, { flags: 'a', encoding: 'utf-8' });
         
         this.stream.on('error', (error) => {
-            console.error(chalk.bgRed.white(` [LOGGER ERROR] Stream failed: ${error} `));
+            console.error(` [LOGGER ERROR] Stream failed: ${error} `);
         });
     }
 
@@ -50,19 +49,15 @@ export class Logger {
         this.writeToFile(this.formatMessage('SUCCESS', message));
     }
 
-    /** Logs a warning to the file and outputs it in yellow to the console. */
+    /** Logs a warning to the log file. */
     public warn(message: string): void {
-        const formatted = this.formatMessage('WARN', message);
-        console.log(chalk.yellow(formatted.trim())); // Trim to avoid double newlines in console
-        this.writeToFile(formatted);
+        this.writeToFile(this.formatMessage('WARN', message));
     }
 
-    /** Logs an error (and optional stack trace) to the file and outputs it in red to the console. */
+    /** Logs an error (and optional stack trace) to the log file. */
     public error(message: string, error?: any): void {
         const errDetails = error ? `\n${error instanceof Error ? error.stack : JSON.stringify(error)}` : '';
-        const formatted = this.formatMessage('ERROR', message + errDetails);
-        console.log(chalk.red(formatted.trim()));
-        this.writeToFile(formatted);
+        this.writeToFile(this.formatMessage('ERROR', message + errDetails));
     }
 
     /** Logs verbose details to the file, but only if the DEBUG env flag is truthy. */

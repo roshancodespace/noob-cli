@@ -23,21 +23,69 @@ export async function startInteractiveSession(
         prompt: PFX_USER // Injected User Prefix
     });
 
-    const state = { gen: false, buddyGen: false, buddyWait: false, taskActive: false, buddyActive: false };
-    let buddyTimeout: NodeJS.Timeout | null = null;
+    const state = { gen: false, buddyGen: false, buddyWait: false, taskActive: false, buddyActive: false, isMultiLine: false, multiLineBuffer: '', awaitingApproval: false };
 
     const stopSpinner = () => spinner.stop();
     const clearBuddy = () => { if (state.buddyGen) { console.log(); state.buddyGen = false; } };
     const doPrompt = () => { if (!state.gen && !state.buddyActive && !spinner.isSpinning) rl.prompt(true); };
     const resetTask = () => { stopSpinner(); state.gen = false; state.taskActive = false; doPrompt(); };
 
+    const submitPrompt = (text: string) => {
+        if (text.startsWith('!buddy')) {
+            state.buddyWait = true;
+            state.buddyActive = true;
+            process.stdout.write(`${PFX_BUDDY}` + chalk.dim('typing...\n'));
+
+            client.send({
+                action: 'buddy_chat',
+                prompt: text.replace('!buddy ', '').trim()
+            });
+        } else {
+            if (state.taskActive) {
+                console.log(chalk.yellow('\n⚠ Please wait for the current task to finish before sending another prompt.'));
+                return rl.prompt(true);
+            }
+            state.gen = false;
+            state.taskActive = true;
+            spinner.start('Agent thinking...');
+
+            client.send({
+                action: 'main_task', prompt: text, cwd: process.cwd(),
+                sessionId, provider, model, systemPrompt, buddyMode, contextPatterns
+            });
+        }
+    }
+
     const client = createClient({
         onOpen: () => {
             rl.prompt();
-
             rl.on('line', (input) => {
                 const trimmed = input.trim();
                 const lowerInput = trimmed.toLowerCase();
+
+                if (state.isMultiLine) {
+                    if (lowerInput === '!end') {
+                        state.isMultiLine = false;
+                        rl.setPrompt(PFX_USER);
+
+                        const finalPrompt = state.multiLineBuffer.trim();
+                        state.multiLineBuffer = '';
+
+                        if (!finalPrompt) return rl.prompt();
+                        submitPrompt(finalPrompt);
+                    } else {
+                        state.multiLineBuffer += input + '\n';
+                        rl.prompt();
+                    }
+                    return;
+                }
+
+                if (lowerInput === '!multi') {
+                    state.isMultiLine = true;
+                    console.log(chalk.yellow('  [Multi-line mode active. Paste your text, then type !end on a new line to submit]'));
+                    rl.setPrompt(chalk.dim('... '));
+                    return rl.prompt();
+                }
 
                 if (lowerInput === 'exit' || lowerInput === 'quit') {
                     client.close();
@@ -45,32 +93,12 @@ export async function startInteractiveSession(
                     process.exit(0);
                 }
 
-                if (!trimmed) return rl.prompt();
-
-                if (trimmed.startsWith('!buddy ')) {
-                    state.buddyWait = true;
-                    state.buddyActive = true;
-                    process.stdout.write(`${PFX_BUDDY}` + chalk.dim('typing...\n'));
-
-                    client.send({
-                        action: 'buddy_chat',
-                        prompt: trimmed.replace('!buddy ', '')
-                    });
-                } else {
-                    if (state.taskActive) {
-                        console.log(chalk.yellow('\n⚠ Please wait for the current task to finish before sending another prompt.'));
-                        return rl.prompt(true);
-                    }
-
-                    state.gen = false;
-                    state.taskActive = true;
-                    spinner.start('Agent thinking...');
-
-                    client.send({
-                        action: 'main_task', prompt: trimmed, cwd: process.cwd(),
-                        sessionId, provider, model, systemPrompt, buddyMode
-                    });
+                if (!trimmed) {
+                    if (!state.taskActive) rl.prompt();
+                    return;
                 }
+
+                submitPrompt(trimmed);
             });
         },
         onMessage: (chunk: WSMessageChunk) => {
@@ -116,7 +144,13 @@ export async function startInteractiveSession(
                     }
                     clearBuddy();
                     stopSpinner();
-                    console.log(`\n${chalk.dim('⚙ Executing')} ${chalk.cyan(chunk.name)}${chalk.dim('...')}`);
+                    if (!state.awaitingApproval) {
+                        console.log(`\n${chalk.dim('⚙ Executing')} ${chalk.cyan(chunk.name)}${chalk.dim('...')}`);
+                        if (chunk.args) {
+                            const summary = chunk.args.command || chunk.args.path || chunk.args.patch || chunk.args.path;
+                            if (summary) console.log(chalk.dim(`  $ ${summary}`));
+                        }
+                    }
                     state.gen = false;
                     break;
 
@@ -133,6 +167,32 @@ export async function startInteractiveSession(
 
                 case 'reasoning':
                     spinner.start('Agent is reasoning...');
+                    break;
+
+                case 'action_approval':
+                    state.awaitingApproval = true;
+                    clearBuddy();
+                    stopSpinner();
+                    state.gen = false;
+
+                    const warningText = chalk.yellow(`\n[WARNING] ${chunk.reason || 'Potentially unsafe command'}`);
+                    const cmdText = chalk.cyan(chunk.cmd || 'Unknown command');
+
+                    rl.question(`${warningText}\nCommand: ${cmdText}\nAllow? (y/N): `, (answer) => {
+                        state.awaitingApproval = false;
+                        const approved = answer.toLowerCase().startsWith('y');
+                        if (!approved) {
+                            console.log(chalk.red('Aborted by user.'));
+                        } else {
+                            console.log(chalk.green('Approved.'));
+                            spinner.start('Executing command...');
+                        }
+
+                        client.send({
+                            action: 'approval_response',
+                            approved
+                        });
+                    });
                     break;
 
                 case 'task_complete':

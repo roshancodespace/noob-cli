@@ -18,7 +18,15 @@ export async function ensureServer() {
     }
 }
 
-export type WSMessageChunk = StreamChunk & { message?: string; done?: boolean; isFinished?: boolean; source?: 'main' | 'buddy' };
+export type WSMessageChunk = StreamChunk & {
+    message?: string;
+    done?: boolean;
+    isFinished?: boolean;
+    source?: 'main' | 'buddy';
+    action?: string;
+    cmd?: string;
+    reason?: string;
+};
 
 export interface ServerEvents {
     onMessage: (chunk: WSMessageChunk) => void;

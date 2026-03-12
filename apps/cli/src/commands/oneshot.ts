@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import crypto from 'crypto';
+import * as readline from 'readline';
 import { logger } from '@noob-cli/core';
 import { PFX_AGENT, PFX_BUDDY, printOneShotHeader } from '../ui/theme.js';
 import { createSpinner } from '../ui/spinner.js';
@@ -19,6 +20,7 @@ export async function runOneShot(
         const spinner = createSpinner('Agent thinking...');
         let isGen = false;
         let isBuddyGen = false;
+        let isAwaitingApproval = false;
 
         const stopSpinner = () => spinner.stop();
         const clearBuddy = () => { if (isBuddyGen) { console.log(); isBuddyGen = false; } };
@@ -55,7 +57,13 @@ export async function runOneShot(
                     case 'tool_start':
                         clearBuddy();
                         stopSpinner();
-                        console.log(chalk.blue(`\n  ○ Running ${chalk.bold(chunk.name)}...`));
+                        if (!isAwaitingApproval) {
+                            console.log(chalk.blue(`\n  ○ Running ${chalk.bold(chunk.name)}...`));
+                            if (chunk.args) {
+                                const summary = chunk.args.command || chunk.args.path || '';
+                                if (summary) console.log(chalk.dim(`    $ ${summary}`));
+                            }
+                        }
                         isGen = false;
                         break;
                     case 'tool_result':
@@ -70,6 +78,37 @@ export async function runOneShot(
                         break;
                     case 'reasoning':
                         spinner.start('Agent is reasoning...');
+                        break;
+                    case 'action_approval':
+                        isAwaitingApproval = true;
+                        clearBuddy();
+                        stopSpinner();
+                        isGen = false;
+                        
+                        const rl = readline.createInterface({
+                            input: process.stdin,
+                            output: process.stdout
+                        });
+
+                        const warningText = chalk.yellow(`\n[WARNING] ${chunk.reason || 'Potentially unsafe command'}`);
+                        const cmdText = chalk.cyan(chunk.cmd || 'Unknown command');
+                        
+                        rl.question(`${warningText}\nCommand: ${cmdText}\nAllow? (y/N): `, (answer) => {
+                            isAwaitingApproval = false;
+                            const approved = answer.toLowerCase().startsWith('y');
+                            if (!approved) {
+                                console.log(chalk.red('Aborted by user.'));
+                            } else {
+                                console.log(chalk.green('Approved.'));
+                                spinner.start('Executing command...');
+                            }
+                            
+                            rl.close();
+                            client.send({
+                                action: 'approval_response',
+                                approved
+                            });
+                        });
                         break;
                     case 'task_complete':
                         console.log('\n');

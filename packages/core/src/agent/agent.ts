@@ -1,7 +1,7 @@
 import { logger } from '../utils/logger.js';
 import { LLMProvider, StreamChunk } from '../llm/types.js';
 import { AGENT_SYSTEM_INSTRUCTIONS } from '../data/instructions.js';
-import { TOOLS } from '../tools/tools.js';
+import { createTools } from '../tools/tools.js';
 import { type Tool, type ModelMessage } from 'ai';
 
 /**
@@ -32,7 +32,7 @@ export class Agent {
             { role: 'user', content: input },
         ];
 
-        const response = await this.llm.generate(messages, customTools || TOOLS);
+        const response = await this.llm.generate(messages, customTools || createTools());
         logger.success('One-shot response generated successfully.');
         return response;
     }
@@ -58,7 +58,7 @@ export class Agent {
             this.messages.push({ role: 'user', content: input });
         }
 
-        const tools = options?.chatOnly ? undefined : (options?.customTools || TOOLS);
+        const tools = options?.chatOnly ? undefined : (options?.customTools || createTools());
 
         for await (const chunk of this.llm.generateStream(this.messages, tools)) {
             if (chunk.type === 'history_update') {

@@ -2,10 +2,10 @@ import { FastifyRequest } from 'fastify';
 import { WebSocket } from '@fastify/websocket';
 import { Tool } from 'ai';
 import { z } from 'zod';
-import { loadContext } from '../../context/index.js';
 import { config } from '../../config/index.js';
 import { withBuddyMode } from '../../agent/index.js';
 import { getOrCreateAgent } from '../agentManager.js';
+import { createTools } from '../../tools/tools.js';
 
 /**
  * WebSocket handler for real-time AI sessions.
@@ -14,7 +14,7 @@ import { getOrCreateAgent } from '../agentManager.js';
 export async function wsHandler(connection: WebSocket, req: FastifyRequest) {
     connection.on('message', async (msg: Buffer) => {
         const data = JSON.parse(msg.toString());
-        const { action, sessionId, prompt, systemPrompt, provider, model, contextPatterns, cwd, buddyMode } = data;
+        const { action, sessionId, prompt, systemPrompt, provider, model, cwd, buddyMode } = data;
 
         // Update working directory if provided
         if (cwd) process.chdir(cwd);
@@ -26,21 +26,38 @@ export async function wsHandler(connection: WebSocket, req: FastifyRequest) {
         // Route: Main technical task
         if (action === 'main_task') {
             const agent = getOrCreateAgent(sessionId || 'default', prov, mod);
-            let finalSysPrompt = systemPrompt;
-
-            // Append loaded file context to the system prompt
-            if (contextPatterns && contextPatterns.length > 0) {
-                try {
-                    const ctx = await loadContext(contextPatterns, { provider: prov, model: mod });
-                    finalSysPrompt = finalSysPrompt ? `${finalSysPrompt}\n\n${ctx.systemPrompt}` : ctx.systemPrompt;
-                } catch (err: any) {
-                    connection.send(JSON.stringify({ type: 'server_error', message: err.message }));
-                    return;
-                }
-            }
 
             try {
-                let stream = agent.askStream(prompt, finalSysPrompt);
+                const customTools = createTools({
+                    onSafetyWarning: async (cmd: string, reason: string) => {
+                        return new Promise((resolve) => {
+                            // Send the approval request to the client
+                            connection.send(JSON.stringify({
+                                type: 'action_approval',
+                                cmd,
+                                reason
+                            }));
+
+                            // Create a temporary one-time listener to wait for the user's response
+                            const approvalHandler = (responseMsg: Buffer) => {
+                                try {
+                                    const responseData = JSON.parse(responseMsg.toString());
+                                    if (responseData.action === 'approval_response') {
+                                        // Once we receive the relevant response, unbind this listener
+                                        connection.off('message', approvalHandler);
+                                        resolve(responseData.approved === true);
+                                    }
+                                } catch (e) {
+                                    // Ignore non-JSON messages while waiting
+                                }
+                            };
+
+                            connection.on('message', approvalHandler);
+                        });
+                    }
+                });
+
+                let stream = agent.askStream(prompt, systemPrompt, { customTools });
 
                 // Wrap stream in Buddy Mode if enabled
                 if (buddyMode) {

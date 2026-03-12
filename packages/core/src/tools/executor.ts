@@ -3,7 +3,6 @@ import { handleExecuteAction } from './actions/execute.js';
 import { handleReadFileAction } from './actions/readFile.js';
 import { handleWriteFileAction } from './actions/writeFile.js';
 import { handleEditFileAction } from './actions/editFile.js';
-import chalk from 'chalk';
 
 /**
  * Parses and dispatches an array of LLM tool calls to their respective local handlers.
@@ -37,12 +36,10 @@ export async function executeToolCalls(
                     break;
                 default:
                     result = `Error: Unknown tool function "${name}"`;
-                    console.log(chalk.red(result));
             }
             executedResults.push(result);
         } catch (err: any) {
             result = `Error parsing arguments or executing tool ${name}: ${err.message}`;
-            console.log(chalk.red(result));
             executedResults.push(result);
         }
     }

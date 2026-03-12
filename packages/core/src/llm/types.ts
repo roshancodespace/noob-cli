@@ -18,7 +18,8 @@ export type StreamChunk =
     | { type: 'reasoning'; content: string }
     | { type: 'task_complete' }
     | { type: 'server_error'; message: string }
-    | { type: 'error'; message: string };
+    | { type: 'error'; message: string }
+    | { type: 'action_approval'; cmd?: string; reason?: string };
 
 export interface LLMOptions {
     apiKey: string;

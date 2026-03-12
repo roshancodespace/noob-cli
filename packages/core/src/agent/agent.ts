@@ -2,35 +2,49 @@ import { logger } from '../utils/logger.js';
 import { LLMProvider, StreamChunk } from '../llm/types.js';
 import { AGENT_SYSTEM_INSTRUCTIONS } from '../data/instructions.js';
 import { TOOLS } from '../tools/tools.js';
-import type { ModelMessage } from 'ai';
+import { type Tool, type ModelMessage } from 'ai';
 
+/**
+ * Orchestrates LLM interactions, managing conversation history and tools.
+ */
 export class Agent {
+    /** Session conversation history. */
     private messages: ModelMessage[] = [];
 
+    /**
+     * @param llm - The initialized LLM provider.
+     */
     constructor(private readonly llm: LLMProvider) {
         logger.debug('Agent instantiated with LLM provider.');
     }
 
-    /** One-shot question — no conversation history. */
-    async ask(input: string, systemPrompt?: string): Promise<string> {
+    /**
+     * Executes a stateless, one-shot prompt without retaining history.
+     * * @param input - The user's prompt.
+     * @param systemPrompt - Optional system instructions.
+     * @param customTools - Optional custom tools to override the global registry.
+     */
+    async ask(input: string, systemPrompt?: string, customTools?: Record<string, Tool>): Promise<string> {
         logger.info(`Executing one-shot prompt. Input length: ${input.length} chars`);
 
         const messages: ModelMessage[] = [
-            { role: 'system', content: systemPrompt || 'You are a helpful terminal AI assistant.' },
+            { role: 'system', content: systemPrompt || 'You are a helpful AI assistant.' },
             { role: 'user', content: input },
         ];
 
-        const response = await this.llm.generate(messages, TOOLS);
+        const response = await this.llm.generate(messages, customTools || TOOLS);
         logger.success('One-shot response generated successfully.');
         return response;
     }
 
     /**
-     * Streaming question with full conversation history.
-     * systemPrompt is used only on the very first call to initialize the conversation.
-     * chatOnly skips tools for lightweight conversational use (e.g. buddy mode).
+     * Executes a stateful, streaming prompt, maintaining conversation history.
+     * * @param input - The user's prompt.
+     * @param systemPrompt - Optional system instructions (applied only on the first call).
+     * @param options.chatOnly - If true, disables tools for a text-only response.
+     * @param options.customTools - Optional custom tools to override the global registry.
      */
-    async *askStream(input?: string, systemPrompt?: string, chatOnly = false): AsyncIterable<StreamChunk> {
+    async *askStream(input?: string, systemPrompt?: string, options?: { chatOnly?: boolean, customTools?: Record<string, Tool> }): AsyncIterable<StreamChunk> {
         if (this.messages.length === 0) {
             logger.info('Initializing new interactive streaming session.');
             this.messages.push({
@@ -44,7 +58,7 @@ export class Agent {
             this.messages.push({ role: 'user', content: input });
         }
 
-        const tools = chatOnly ? undefined : TOOLS;
+        const tools = options?.chatOnly ? undefined : (options?.customTools || TOOLS);
 
         for await (const chunk of this.llm.generateStream(this.messages, tools)) {
             if (chunk.type === 'history_update') {

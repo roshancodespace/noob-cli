@@ -1,56 +1,77 @@
-import fs from 'fs/promises';
+import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
 
+/**
+ * Logger that pipes output to a persistent file stream 
+ * and mirrors critical levels to the console.
+ */
 export class Logger {
-    private readonly logFilePath: string;
+    /** Persistent write stream to avoid opening/closing the file on every log. */
+    private readonly stream: fs.WriteStream;
 
+    /**
+     * @param filename - Name of the log file, resolved against the current working directory.
+     */
     constructor(filename: string = 'agent.log') {
-        this.logFilePath = path.resolve(process.cwd(), filename);
+        const logFilePath = path.resolve(process.cwd(), filename);
+        
+        this.stream = fs.createWriteStream(logFilePath, { flags: 'a', encoding: 'utf-8' });
+        
+        this.stream.on('error', (error) => {
+            console.error(chalk.bgRed.white(` [LOGGER ERROR] Stream failed: ${error} `));
+        });
     }
 
+    /**
+     * Formats the log string with an ISO timestamp and severity level.
+     */
     private formatMessage(level: string, message: string): string {
         const timestamp = new Date().toISOString();
-        return `[${timestamp}] [${level}] ${message}`;
+        return `[${timestamp}] [${level}] ${message}\n`;
     }
 
-    private async writeToFile(message: string): Promise<void> {
-        try {
-            await fs.appendFile(this.logFilePath, message + '\n', 'utf-8');
-        } catch (error) {
-            console.error(chalk.bgRed.white(` [LOGGER ERROR] Failed to write to log file: ${error} `));
+    /**
+     * Pipes the formatted string to the active file stream.
+     */
+    private writeToFile(formattedMessage: string): void {
+        if (this.stream.writable) {
+            this.stream.write(formattedMessage);
         }
     }
 
+    /** Logs a standard informational event. */
     public info(message: string): void {
-        const formatted = this.formatMessage('INFO', message);
-        this.writeToFile(formatted);
+        this.writeToFile(this.formatMessage('INFO', message));
     }
 
+    /** Logs a successful operation. */
     public success(message: string): void {
-        const formatted = this.formatMessage('SUCCESS', message);
-        this.writeToFile(formatted);
+        this.writeToFile(this.formatMessage('SUCCESS', message));
     }
 
+    /** Logs a warning to the file and outputs it in yellow to the console. */
     public warn(message: string): void {
         const formatted = this.formatMessage('WARN', message);
-        console.log(chalk.yellow(formatted));
+        console.log(chalk.yellow(formatted.trim())); // Trim to avoid double newlines in console
         this.writeToFile(formatted);
     }
 
+    /** Logs an error (and optional stack trace) to the file and outputs it in red to the console. */
     public error(message: string, error?: any): void {
         const errDetails = error ? `\n${error instanceof Error ? error.stack : JSON.stringify(error)}` : '';
         const formatted = this.formatMessage('ERROR', message + errDetails);
-        console.log(chalk.red(formatted));
+        console.log(chalk.red(formatted.trim()));
         this.writeToFile(formatted);
     }
 
+    /** Logs verbose details to the file, but only if the DEBUG env flag is truthy. */
     public debug(message: string): void {
         if (process.env.DEBUG) {
-            const formatted = this.formatMessage('DEBUG', message);
-            this.writeToFile(formatted);
+            this.writeToFile(this.formatMessage('DEBUG', message));
         }
     }
 }
 
+/** Global singleton instance for the core engine. */
 export const logger = new Logger('agent-activity.log');

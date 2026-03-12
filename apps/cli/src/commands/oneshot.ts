@@ -61,6 +61,10 @@ export async function runOneShot(
                     case 'tool_result':
                         clearBuddy();
                         console.log(chalk.green(`  ✓ ${chunk.name} completed.`));
+                        if (chunk.name === 'ask_main_agent' && chunk.result) {
+                            const formattedResult = typeof chunk.result === 'string' ? chunk.result : JSON.stringify(chunk.result, null, 2);
+                            console.log(`\n${PFX_AGENT}${chalk.blue(formattedResult)}\n`);
+                        }
                         spinner.start('Analyzing result...');
                         isGen = false;
                         break;

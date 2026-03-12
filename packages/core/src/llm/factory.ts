@@ -8,6 +8,11 @@ export interface ProviderOptions extends LLMOptions {
     provider: string;
 }
 
+/**
+ * Factory function to instantiate the requested LLM provider.
+ * * @param options - The provider configuration and API keys.
+ * @returns An initialized LLMProvider instance.
+ */
 export function createProvider(options: ProviderOptions): LLMProvider {
     switch (options.provider.toLowerCase()) {
         case 'groq':

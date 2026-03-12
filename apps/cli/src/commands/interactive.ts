@@ -23,12 +23,12 @@ export async function startInteractiveSession(
         prompt: PFX_USER // Injected User Prefix
     });
 
-    const state = { gen: false, buddyGen: false, buddyWait: false, taskActive: false };
+    const state = { gen: false, buddyGen: false, buddyWait: false, taskActive: false, buddyActive: false };
     let buddyTimeout: NodeJS.Timeout | null = null;
 
     const stopSpinner = () => spinner.stop();
     const clearBuddy = () => { if (state.buddyGen) { console.log(); state.buddyGen = false; } };
-    const doPrompt = () => { if (!state.gen && !spinner.isSpinning) rl.prompt(true); };
+    const doPrompt = () => { if (!state.gen && !state.buddyActive && !spinner.isSpinning) rl.prompt(true); };
     const resetTask = () => { stopSpinner(); state.gen = false; state.taskActive = false; doPrompt(); };
 
     const client = createClient({
@@ -49,6 +49,7 @@ export async function startInteractiveSession(
 
                 if (trimmed.startsWith('!buddy ')) {
                     state.buddyWait = true;
+                    state.buddyActive = true;
                     process.stdout.write(`${PFX_BUDDY}` + chalk.dim('typing...\n'));
 
                     client.send({
@@ -100,17 +101,19 @@ export async function startInteractiveSession(
 
                     process.stdout.write(chalk.magenta(chunk.content));
 
-                    if (buddyTimeout) clearTimeout(buddyTimeout);
-
                     if (chunk.done || chunk.isFinished) {
                         clearBuddy();
                         doPrompt();
-                    } else {
-                        buddyTimeout = setTimeout(() => { clearBuddy(); doPrompt(); }, 800);
                     }
                     break;
 
                 case 'tool_start':
+                    if (state.buddyWait) {
+                        readline.moveCursor(process.stdout, 0, -1);
+                        readline.clearLine(process.stdout, 0);
+                        state.buddyWait = false;
+                        state.buddyGen = true;
+                    }
                     clearBuddy();
                     stopSpinner();
                     console.log(`\n${chalk.dim('⚙ Executing')} ${chalk.cyan(chunk.name)}${chalk.dim('...')}`);
@@ -120,6 +123,10 @@ export async function startInteractiveSession(
                 case 'tool_result':
                     clearBuddy();
                     console.log(`${chalk.green('✔ Finished')} ${chalk.dim(chunk.name)}`);
+                    if (chunk.name === 'ask_main_agent' && chunk.result) {
+                        const formattedResult = typeof chunk.result === 'string' ? chunk.result : JSON.stringify(chunk.result, null, 2);
+                        console.log(`\n${PFX_AGENT}${chalk.blue(formattedResult)}\n`);
+                    }
                     spinner.start('Analyzing...');
                     state.gen = false;
                     break;
@@ -130,9 +137,14 @@ export async function startInteractiveSession(
 
                 case 'task_complete':
                     console.log();
-                    if (buddyTimeout) clearTimeout(buddyTimeout);
-                    state.buddyGen = false;
-                    resetTask();
+                    if (chunk.source === 'buddy') {
+                        state.buddyGen = false;
+                        state.buddyActive = false;
+                        doPrompt();
+                    } else {
+                        state.buddyGen = false;
+                        resetTask();
+                    }
                     break;
 
                 case 'server_error':

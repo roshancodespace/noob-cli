@@ -1,7 +1,12 @@
 import path from 'node:path';
 
+/**
+ * The outcome of a command validation check.
+ */
 export interface SafetyResult {
+    /** The resolution status of the validation. */
     status: 'approved' | 'warning' | 'rejected';
+    /** Optional explanation for warnings or rejections. */
     reason?: string;
 }
 
@@ -21,6 +26,12 @@ const ALLOWED_EXECUTABLES = new Set([
     'tsc', 'vite', 'esbuild', 'rollup', 'webpack', 'grep', 'powershell', 'cmd', 'wc'
 ]);
 
+/**
+ * Validates a raw shell command against strict security rules to prevent 
+ * path traversal, destructive actions, and unauthorized executables.
+ * * @param command - The raw terminal command string.
+ * @returns A SafetyResult indicating if the command is safe to execute.
+ */
 export function validateCommand(command: string): SafetyResult {
     const trimmed = command.trim();
     const normalized = trimmed.toLowerCase().replace(/\s+/g, ' ');

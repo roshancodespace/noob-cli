@@ -6,6 +6,7 @@ import { config } from '../../config/index.js';
 import { withBuddyMode } from '../../agent/index.js';
 import { getOrCreateAgent } from '../agentManager.js';
 import { createTools } from '../../tools/tools.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * WebSocket handler for real-time AI sessions.
@@ -75,7 +76,7 @@ export async function wsHandler(connection: WebSocket, req: FastifyRequest) {
                 connection.send(JSON.stringify({ type: 'task_complete', source: 'main' }));
             } catch (err: any) {
                 const errorMsg = err.message || String(err);
-                console.error('[Stream Error]', errorMsg);
+                logger.error('[Stream Error]', errorMsg);
 
                 if (errorMsg.includes('Failed to parse input') || errorMsg.includes('JSON')) {
                     connection.send(JSON.stringify({
@@ -131,7 +132,7 @@ export async function wsHandler(connection: WebSocket, req: FastifyRequest) {
                 }
                 connection.send(JSON.stringify({ type: 'task_complete', source: 'buddy' }));
             } catch (e) {
-                console.error('[Buddy Error]', e);
+                logger.error('[Buddy Error]', e);
             }
         }
     });

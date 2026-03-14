@@ -15,6 +15,8 @@
     </a>
   </p>
 
+  > 🚧 **Heads Up — Under Active Development:** I am currently building the engine. Expect rapid updates, shifting internal APIs, and the occasional spark as I tighten the bolts.
+
   <p>
     Let the background subroutines handle your complex code and system tasks, while the Buddy keeps you updated in the foreground.
   </p>
@@ -55,7 +57,6 @@ cp .env.example .env
 
 # Build the project
 pnpm build
-
 ```
 
 <h2 id="usage">💻 Usage</h2>
@@ -66,14 +67,12 @@ You can fire off quick tasks directly from your terminal or drop into an interac
 
 ```bash
 pnpm dev:cli -b
-
 ```
 
 **One-Shot Command**
 
 ```bash
 pnpm dev:cli "List all the TypeScript files in the src directory"
-
 ```
 
 ### Options
